@@ -1,0 +1,208 @@
+/*1er Parcial Electrónica digital 3
+ * 
+ * Ejercicio 1:
+ * Un estacionamiento automatizado utiliza una barrera que se abre y cierra en función de la validación de
+ * un ticket de acceso utilizando una LPC1769 Rev D trabajando a una frecuencia CCLK = 70 MHz.
+ * 
+ * Cuando el sistema detecta que un automovil se ha posicionado frente a la barrera se debe activar un sen-
+ * sor conectado al pin P2.4 mediante una interrupión externa (EINT). Una vex validado el ticket, el sistema
+ * activa un motor que abre la barrera usando el P0.15. El motor debe estar activado por X segundos y luego
+ * apagarse, utilizando el temporizador Systick para contar el tiempo. Si el ticekt es inválido, se encende-
+ * rá un LED rojo conectado al P1.5.
+ * 
+ * Para gestionar el tiempo de apertura de la barrera, existe un switch conectado al P3.4 que dispone una 
+ * ventana de configuración de 3 segundos gestionada por el temporizador Systick.
+ * 
+ * Durante dicha ventana se debe contar cuantas veces se presiona el switch y en función de dicha cantidad,
+ * establecer el tiempo de la barrera:
+ * 
+				* Cantidad de veces que se preiona	el Switch					Tiempo de la barrera
+				* 					0x00												5s
+				* 					0x01												10s
+				* 					0x02 												20s
+				* 					0x03												40s
+				* 					0x04 												5s							
+ * */
+
+/*Interpretación y modificaciones:
+ * El enunciado especifica que que el led está conectado al P1.5 sin embargo el mismo no es accesible. Por lo tanto
+ * se lo reemplazará por el P0.16. Lo mismo para el caso de switch (Se reemplaza el P3.4 por el P0.17 al no ser accesible).
+ * 
+		PINES | Direccion | Perisferico |        Funcion		|  Aclaraciones
+		P0.15   ------>      MOTOR				GPIO
+		P0.16   ------>       LED				GPIO
+		P0.17   <------     SWITCH				GPIO+INT		Se lo supone activo por bajo
+		P2.4    <------ SENSOR CREDENCIAL		GPIO
+		P2.10   <------ SENSOR DE PRESENCIA AUTO EINT0
+ * 
+ * También se agrega que para un mejor funcionamiento se le da prioridad al accionar de la barrera por ecima de la 
+ * modificación en la configuración de cuanto tiempo se mantiene arriba la misma para evitar conflictos entre ambas
+ * funciones.
+ * 
+ * */
+
+#ifdef __USE_CMSIS
+#include "LPC17xx.h"
+#endif
+#include <cr_section_macros.h>
+
+//Defino macros y definiciones
+
+//Defino variables glogales
+uint32_t TickVal = 13999999;						//Valor para generar un desborde del Systick cada 200ms
+volatile uint8_t StopValue = 25; 					//Cantidad de desbordes en los cuales se mantiene la barrera arriba
+volatile uint8_t FlagAcceso = 0;					//Flag para indicar que la barrera debe estar arriba
+volatile uint8_t FlagActualizacion =0;				//Flag que estoy en la ventana de configuracion
+volatile uint8_t Contador =0;						//Variable para almacenar la cantidad de veces que se presiona el switch
+volatile uint8_t nTicks=0;							//Variable para almacenar la cantidad de desbordes del Systick					
+
+//Prototipos de funciones
+void cfgGPIO(void);
+void cfgSysTick(uint8_t value);
+void cfgEINT0(void);
+void cfgIntGPIO(void);
+
+//Funcion principal
+int main(void) {
+	
+	cfgGPIO();
+	cfgSysTick(0x04);								//Inicializo pero dejo en STOP el Systick
+	cfgEINT0();
+	cfgIntGPIO();
+	
+
+    while(1) {
+    }
+    return 0 ;
+}
+
+void cfgGPIO(void){
+	//Configuro el P2.10
+	LPC_PINCON->PINSEL4 |=(1<<20); 				//Funcion = EINT0
+	LPC_PINCON->PINMODE4 |= (0B11<<20);			//Pull-down ON
+	//Configuro el P2.4
+	LPC_GPIO2->FIODIR &=~(1<<4); 				//INPUT
+	LPC_PINCON->PINMODE4 |= (0B10<<8); 			//Pul-up/down OFF
+	//Configuro el PO.15 y P0.16
+	LPC_GPIO0->FIODIR |= (0B11<<15); 			//OUTPUTS
+	//Configuro el P0.17
+	LPC_GPIO0->FIODIR &=~(1<<17); 				//INPUT
+	
+	//Asumo P2.4, P0.15, P0.16 Y P0,17 como GPIO por defecto
+	//Asumo P0.17 con Pull-up habilitada por defecto
+	
+	return;
+}
+
+void cfgSysTick(uint8_t value){
+	SysTick -> LOAD = TickVal;					//Cargo el systick para que desborde cada 200ms
+	SysTick -> VAL = 0;							//Limpio el valor actual
+	SysTick -> CTRL = value;					//Configuro el clk, interrupcion y doy inicio segun "value"
+	return;
+}
+
+void cfgEINT0(void){
+	LPC_SC->EXTMODE |= (1<<0); 					//EINT0 sensible por flanco
+	LPC_SC->EXTPOLAR |= (1<<0); 				//sensible a flanco de subida
+	LPC_SC->EXTINT |= (1<<0);					//Limpio la FLAG de EINT0
+	
+	NVIC_SetPriority(EINT0_IRQn,1);
+	NVIC_Enable(EINT0_IRQn);
+	
+	return;
+}
+
+void cfgIntGPIO(void){
+	LPC_GPIOINT->IO0IntEnR &= ~(1<<17); 		//Deshabilito interrupci[one por flanco de subida de P0.17
+	LPC_GPIOINT->IO0IntEnF |= (1<<17); 			//Habilito las interrupciones por flanco de bajada de P0.17
+	LPC_GPIOINT->IO0IntClr |= (1<<17); 			//Bajo la flag
+	
+	NVIC_SetPriority(EINT3_IRQn,2);
+	NVIC_Enable(EINT3_IRQn);
+	return;
+}
+
+void EINT0_IRQHandler(void){
+	
+	//Si la credencial es valida
+	if(LPC_GPIO2->FIOPIN&(1<<4)){
+		LPC_GPIO0->FIOCLR |= (1<<16); 			//LED OFF
+		LPC_GPIO0 -> FIOSET |= (1<<15);			//Motor ON
+		FlagAcceso = 1;							//Bandera de acceso arriba
+		cfgSysTick(0x07);						//Pongo a contar al Systick
+	}
+	
+	//Si la credencial no es valida
+	else{
+		LPC_GPIO0->FIOSET |= (1<<16);  			//LED ON
+		LPC_GPIO0->FIOCLR |= (1<<15);  			//MOTOR OFF
+	}
+	
+	LPC_SC->EXTINT |= (1<<0); 					//Limpio la flag de EINT0
+	return;
+}
+
+void EINT3_IRQHandler(void){
+	if(FlagAcceso==0){
+		if(FlagActualizacion==0){			//Si la barrera no esta arriba y es la priera vez que presiono el switch
+			FlagActualizacion=1;							//Levanto la flag que me indica queestoy en la ventana
+			cfgSysTick(0x07); 								//Pongo el Systick a contar
+		}
+	Contador = (Contador+1)%4; 				//Actualizo el contador en un buffer circular
+	}
+	LPC_GPIOINT->IO0IntClr |= (1<<17); 		//Limpio la flag de la interrupcion
+	return;
+}
+
+void SysTick_Handler(void){
+	
+	//Si se ordenó matener la barrera arriba por x tiempo
+	if(FlagAcceso){
+		nTicks++;							//Aumento la cuenta de desbordes
+		if(nTicks==StopValue){				//Si ya se cumplio el tiempo
+			LPC_GPIO0->FIOCLR|=(1<<15);		//Bajo la barrera(Apago el motor)
+			nTicks=0;						//Reinicio la cuenta de desbordes
+			FlagAcceso=0;					//Bajo la flag
+			cfgSysTick(0x04);				//Paro el SysTick
+		}
+	}
+	
+	//Si se ordeno contar las veces que se presiona el switch
+	else if(FlagActualizacion){
+		nTicks++;							//Actualizo la cuenta de desbordes
+		
+		if(nTicks==15){						//Si ya pasaron los 3 segundos
+		
+			//Actualizo el tiempo a mantener arriba segun las veces que se presiono el switch
+			switch(Contador){
+			case 0:
+				StopValue=25; 				//25*0.2 seg = 5 seg
+				break;
+			case 1:
+				StopValue=50; 				//50*0.2 seg = 10 seg
+				break;
+			case 2:
+				StopValue=100;				//100*0.2seg = 20 seg
+				break;
+			case 3:
+				StopValue=200;				//200*0.2 seg =40 seg
+				break;
+			
+			}
+			
+			nTicks=0;						//Reinicio el conteo de desbordes
+			Contador = 0;					//Reinicio el conteo del switch
+			FlagActualizacion = 0;			//Limpio flag
+			cfgSysTick(0x04);				//Detengo el Systick
+		
+		}
+	}
+	
+	SysTick -> CTRL &= SysTick -> CTRL; 	//Limpio la flag de la interrupci[on
+	return;
+}
+
+
+
+
+
