@@ -1,0 +1,84 @@
+/*
+ * Copyright 2022 NXP
+ * NXP confidential.
+ * This software is owned or controlled by NXP and may only be used strictly
+ * in accordance with the applicable license terms.  By expressly accepting
+ * such terms or by downloading, installing, activating and/or otherwise using
+ * the software, you are agreeing that you have read, and that you agree to
+ * comply with and are bound by, such license terms.  If you do not agree to
+ * be bound by the applicable license terms, then you may not retain, install,
+ * activate or otherwise use the software.
+ */
+
+#ifdef __USE_CMSIS
+#include "LPC17xx.h"
+#endif
+
+#include <cr_section_macros.h>
+
+// TODO: insert other include files here
+#include "lpc17xx_timer.h"
+
+/*Consigna:
+ * Escribir el codigo que configure el Timer0 para que cumpla con las
+ * las siguientes especificaciones:
+ * PR=2
+ * MRx=6
+ * Interrupcion y reset habilitado en match
+ * Division de perisferico de 2
+ * Suponer un CCLK= 100 MHz*/
+
+//Prototipo de funciones
+
+void cfgTimer(void);
+//Macros
+
+//Variables globales
+
+
+int main(void) {
+
+	cfgTimer();
+
+    while(1) {
+
+    }
+    return 0 ;
+}
+
+/*-----------------Configuración del Timer-----------------*/
+void cfgTimer(void){
+
+	TIM_TIMERCFG_Type cfgTimerMode;
+	TIM_MATCHCFG_Type cfgTimerMatch;
+
+
+
+	cfgTimerMode.PrescaleOption = TIM_PRESCALE_TICKVAL;				//Selecciono confg el valor de PR en ticks
+	cfgTimerMode.PrescaleValue = 2;									//PR=2
+
+	cfgTimerMatch.MatchChannel= 0;									//Match0
+	cfgTimerMatch.IntOnMatch= ENABLE;								//Interrupcion ante un evento MATCH habilitada
+	cfgTimerMatch.StopOnMatch =DISABLE;								//Detencion del contador ante un MATCH deshabilitada
+	cfgTimerMatch.ResetOnMatch = ENABLE;							//Reset ante un MATCH habilitada
+	cfgTimerMatch.ExtMatchOutputType = TIM_EXTMATCH_NOTHING;		//Funcion del pin MATCH0 deshabilitada
+	cfgTimerMatch.MatchValue = 6;									//Valor del MATCH = 6
+
+	/*Para seleccionar un PCKL=CCLK/2 es necesario modificar el driver TIM_Init ya que en su cuerpo
+	 * configura un PCLK=CCLK/4 por defecto.
+	 *
+	 * Linea a cambiar:
+	 * CLKPWR_SetPCLKDiv (CLKPWR_PCLKSEL_TIMER0, CLKPWR_PCLKSEL_CCLK_DIV_4);
+	 * Nueva linea:
+	 * CLKPWR_SetPCLKDiv (CLKPWR_PCLKSEL_TIMER0, CLKPWR_PCLKSEL_CCLK_DIV_2);
+	 *
+	 *Nota: Como yo estoy utilizando el
+	 * */
+	TIM_Init(LPC_TIM0, TIM_TIMER_MODE, &cfgTimerMode);
+	TIM_ConfigMatch(LPC_TIM0, &cfgTimerMatch);
+	TIM_Cmd(LPC_TIM0, ENABLE);
+
+
+
+
+}

@@ -1,0 +1,254 @@
+/*
+ * Copyright 2022 NXP
+ * NXP confidential.
+ * This software is owned or controlled by NXP and may only be used strictly
+ * in accordance with the applicable license terms.  By expressly accepting
+ * such terms or by downloading, installing, activating and/or otherwise using
+ * the software, you are agreeing that you have read, and that you agree to
+ * comply with and are bound by, such license terms.  If you do not agree to
+ * be bound by the applicable license terms, then you may not retain, install,
+ * activate or otherwise use the software.
+ */
+
+
+/*Ejercicio5
+ * Utilizando los 4 registros match del Timer 0 y las salidas P0.0,
+ *  P0.1,P0.2 y P0.3, realizar un programa en C que permita obtener
+ *  las formas de ondas adjuntas, donde los pulsos en alto tienen
+ *  una duración de 5ms. Un pulsador conectado a la entrada EINT3,
+ *  permitirá elegir entre las dos secuencias mediante una rutina
+ *  de servicio a la interrupción. La prioridad de la interrupción
+ *  del Timer tiene que ser mayor que la del pulsador. Estas formas
+ *  de ondas son muy útiles para controlar un motor paso a paso.*/
+
+#ifdef __USE_CMSIS
+#include "LPC17xx.h"
+#endif
+
+#include <cr_section_macros.h>
+
+// TODO: insert other include files here
+#include "lpc17xx_pinsel.h"
+#include "lpc17xx_gpio.h"
+#include "lpc17xx_timer.h"
+#include "lpc17xx_exti.h"
+
+//Macros y variables globales
+#define OUTPUT (uint8_t) 1
+#define INPUT (uint8_t) 0
+#define PIN_0 ((uint32_t)(1<<0))
+#define PIN_1 ((uint32_t)(1<<1))
+#define PIN_2 ((uint32_t)(1<<2))
+#define PIN_3 ((uint32_t)(1<<3))
+#define PIN_13 ((uint32_t)(1<<13))
+#define PORT_0 (uint8_t) 0
+#define PORT_2 (uint8_t) 2
+#define SIZE_WAVE 4
+
+uint8_t Wave1[SIZE_WAVE]={1, 0, 0, 0};
+uint8_t Wave2[SIZE_WAVE]={1, 1, 0, 0};
+
+volatile uint8_t Flag1 = 1;
+
+
+//Prototipos de funciones
+void cfgTimer0(void);
+void cfgGPIO(void);
+void cfgEXTI3(void);
+void ShowWave(void);
+
+
+
+// TODO: insert other definitions and declarations here
+
+int main(void) {
+
+	cfgGPIO();
+	cfgTimer0();
+    cfgEXTI3();
+
+    while(1) {
+
+    }
+    return 0 ;
+}
+
+void cfgGPIO(void){
+
+	PINSEL_CFG_Type cfgP0_0;
+	PINSEL_CFG_Type cfgP0_1;
+	PINSEL_CFG_Type cfgP0_2;
+	PINSEL_CFG_Type cfgP0_3;
+	PINSEL_CFG_Type cfgP2_13;
+
+	cfgP0_0.Portnum=PINSEL_PORT_0;
+	cfgP0_0.Pinnum=PINSEL_PIN_0;
+	cfgP0_0.Funcnum=PINSEL_FUNC_0;
+	cfgP0_0.Pinmode=PINSEL_PINMODE_TRISTATE;
+	cfgP0_0.OpenDrain=PINSEL_PINMODE_NORMAL;
+
+	cfgP0_1.Portnum=PINSEL_PORT_0;
+	cfgP0_1.Pinnum=PINSEL_PIN_1;
+	cfgP0_1.Funcnum=PINSEL_FUNC_0;
+	cfgP0_1.Pinmode=PINSEL_PINMODE_TRISTATE;
+	cfgP0_1.OpenDrain=PINSEL_PINMODE_NORMAL;
+
+	cfgP0_2.Portnum=PINSEL_PORT_0;
+	cfgP0_2.Pinnum=PINSEL_PIN_2;
+	cfgP0_2.Funcnum=PINSEL_FUNC_0;
+	cfgP0_2.Pinmode=PINSEL_PINMODE_TRISTATE;
+	cfgP0_2.OpenDrain=PINSEL_PINMODE_NORMAL;
+
+	cfgP0_3.Portnum=PINSEL_PORT_0;
+	cfgP0_3.Pinnum=PINSEL_PIN_3;
+	cfgP0_3.Funcnum=PINSEL_FUNC_0;
+	cfgP0_3.Pinmode=PINSEL_PINMODE_TRISTATE;
+	cfgP0_3.OpenDrain=PINSEL_PINMODE_NORMAL;
+
+	cfgP2_13.Portnum=PINSEL_PORT_2;
+	cfgP2_13.Pinnum=PINSEL_PIN_13;
+	cfgP2_13.Funcnum=PINSEL_FUNC_1;
+	cfgP2_13.Pinmode=PINSEL_PINMODE_PULLUP;
+	cfgP2_13.OpenDrain=PINSEL_PINMODE_NORMAL;
+
+	PINSEL_ConfigPin(&cfgP0_0);
+	PINSEL_ConfigPin(&cfgP0_1);
+	PINSEL_ConfigPin(&cfgP0_2);
+	PINSEL_ConfigPin(&cfgP0_3);
+	PINSEL_ConfigPin(&cfgP2_13);
+
+	GPIO_SetDir(PORT_0, PIN_0, OUTPUT);
+	GPIO_SetDir(PORT_0, PIN_1, OUTPUT);
+	GPIO_SetDir(PORT_0, PIN_2, OUTPUT);
+	GPIO_SetDir(PORT_0, PIN_3, OUTPUT);
+
+	//GPIO_ClearValue(PORT_0, 0b1111);
+	GPIO_ClearValue(PORT_0, 0x0F);
+	return;
+}
+
+void cfgTimer0(void){
+
+	TIM_TIMERCFG_Type cfgTimer0;
+	TIM_MATCHCFG_Type cfgMatch0;
+	TIM_MATCHCFG_Type cfgMatch1;
+	TIM_MATCHCFG_Type cfgMatch2;
+	TIM_MATCHCFG_Type cfgMatch3;
+
+	cfgTimer0.PrescaleOption=TIM_PRESCALE_USVAL;
+	cfgTimer0.PrescaleValue=2000;
+
+	cfgMatch0.MatchChannel=0;
+	cfgMatch0.IntOnMatch= ENABLE;
+	cfgMatch0.StopOnMatch=DISABLE;
+	cfgMatch0.ResetOnMatch=DISABLE;
+	cfgMatch0.ExtMatchOutputType=TIM_EXTMATCH_NOTHING;
+	cfgMatch0.MatchValue=499; //Cambiar a 5 para cumplir con los 5ms
+
+	cfgMatch1.MatchChannel=1;
+	cfgMatch1.IntOnMatch= ENABLE;
+	cfgMatch1.StopOnMatch=DISABLE;
+	cfgMatch1.ResetOnMatch=DISABLE;
+	cfgMatch1.ExtMatchOutputType=TIM_EXTMATCH_NOTHING;
+	cfgMatch1.MatchValue=999; //Cambiar a 10 para cumplir con los 5ms
+
+	cfgMatch2.MatchChannel=2;
+	cfgMatch2.IntOnMatch= ENABLE;
+	cfgMatch2.StopOnMatch=DISABLE;
+	cfgMatch2.ResetOnMatch=DISABLE;
+	cfgMatch2.ExtMatchOutputType=TIM_EXTMATCH_NOTHING;
+	cfgMatch2.MatchValue=1499; //Cambiar a 15 para cumplir con los 5ms
+
+	cfgMatch3.MatchChannel=3;
+	cfgMatch3.IntOnMatch= ENABLE;
+	cfgMatch3.StopOnMatch=DISABLE;
+	cfgMatch3.ResetOnMatch=ENABLE;
+	cfgMatch3.ExtMatchOutputType=TIM_EXTMATCH_NOTHING;
+	cfgMatch3.MatchValue=1999; //Cambiar a 20 para cumplir con los 5ms
+
+	TIM_Init(LPC_TIM0, TIM_TIMER_MODE, &cfgTimer0);
+	TIM_ConfigMatch(LPC_TIM0, &cfgMatch0);
+	TIM_ConfigMatch(LPC_TIM0, &cfgMatch1);
+	TIM_ConfigMatch(LPC_TIM0, &cfgMatch2);
+	TIM_ConfigMatch(LPC_TIM0, &cfgMatch3);
+	TIM_Cmd(LPC_TIM0, ENABLE);
+
+	NVIC_SetPriority(TIMER0_IRQn, 0);
+	NVIC_EnableIRQ(TIMER0_IRQn);
+	return;
+}
+
+void cfgEXTI3(void){
+	EXTI_InitTypeDef cfgExtI3;
+
+	cfgExtI3.EXTI_Line = EXTI_EINT3;
+	cfgExtI3.EXTI_Mode = EXTI_MODE_EDGE_SENSITIVE;
+	cfgExtI3.EXTI_polarity = EXTI_POLARITY_LOW_ACTIVE_OR_FALLING_EDGE;
+
+	EXTI_Config(&cfgExtI3);
+
+	NVIC_SetPriority(EINT3_IRQn, 1);
+	NVIC_EnableIRQ(EINT3_IRQn);
+	return;
+}
+
+void ShowWave(void){
+
+//			GPIO_ClearValue(PORT_0, 0xF);
+//			GPIO_SetValue(PORT_0, (1<<index));
+//	GPIO_ClearValue(PORT_0, 0x0F);
+	if(Flag1){
+		for(uint8_t i=0; i<SIZE_WAVE; i++){
+			if(Wave1[i]){
+				GPIO_SetValue(PORT_0, (1<<i));
+			}
+			else{
+				GPIO_ClearValue(PORT_0,(1<<i) );
+			}
+		}
+	}
+	else{
+		for(uint8_t i=0; i<SIZE_WAVE; i++){
+			if(Wave2[i]){
+				GPIO_SetValue(PORT_0, (1<<i));
+			}
+			else{
+				GPIO_ClearValue(PORT_0,(1<<i));
+			}
+		}
+	}
+	return;
+}
+
+void TIMER0_IRQHandler(void){
+	volatile static uint8_t Cuenta=0;
+	TIM_ClearIntPending(LPC_TIM0, Cuenta);
+	ShowWave();
+	Cuenta = (Cuenta+1)%5;
+
+	//Actualizo las ondas para la siguiente interrupcion
+	if(Flag1){
+		volatile uint8_t UltimoElemento1=Wave1[SIZE_WAVE-1];
+		for(uint8_t i = SIZE_WAVE-1; i>0; i--){
+			Wave1[i]=Wave1[i-1];
+		}
+		Wave1[0]= UltimoElemento1;
+	}
+	else{
+		volatile uint8_t UltimoElemento2=Wave2[SIZE_WAVE-1];
+		for(uint8_t i = SIZE_WAVE-1; i>0; i--){
+			Wave2[i]=Wave2[i-1];
+		}
+		Wave2[0]= UltimoElemento2;
+
+	}
+
+	return;
+}
+
+void EINT3_IRQHandler(void){
+	Flag1 = (Flag1+1)%2;
+	EXTI_ClearEXTIFlag(EXTI_EINT3);
+	return;
+}
+

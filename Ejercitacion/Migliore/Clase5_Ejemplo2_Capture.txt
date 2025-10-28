@@ -1,0 +1,132 @@
+/*
+ * Copyright 2022 NXP
+ * NXP confidential.
+ * This software is owned or controlled by NXP and may only be used strictly
+ * in accordance with the applicable license terms.  By expressly accepting
+ * such terms or by downloading, installing, activating and/or otherwise using
+ * the software, you are agreeing that you have read, and that you agree to
+ * comply with and are bound by, such license terms.  If you do not agree to
+ * be bound by the applicable license terms, then you may not retain, install,
+ * activate or otherwise use the software.
+ */
+/*Ejemplo 2:
+ * Encender un LED conectado al pin P0.22 cuando el tiempo entre dos eventos
+ * consecutivos asociados a un flanco descendiente en el pin P1.26 debido a
+ * la interrupcion del TMR0, sea igual o mayor a 1 seg.
+ * */
+
+
+#ifdef __USE_CMSIS
+#include "LPC17xx.h"
+#endif
+
+#include <cr_section_macros.h>
+#include "lpc17xx_gpio.h"
+#include "lpc17xx_pinsel.h"
+#include "lpc17xx_timer.h"
+
+//Defino ctes y macros
+#define OUTPUT (uint8_t) 1
+#define INPUT (uint8_t) 0
+#define PORT_0 (uint8_t) 0
+#define PIN_0_22 ((uint32_t)(1<<22))
+
+//Defino varibles globales
+volatile uint32_t CapturaActual=0;
+volatile uint32_t CapturaPrevia=0;
+volatile uint8_t CapturaFlag=0;
+
+//Prototipos de funciones
+void cfgPines(void);
+void cfgTim0(void);
+
+int main(void) {
+
+	cfgPines();
+	cfgTim0();
+
+    while(1) {
+
+    }
+    return 0 ;
+}
+
+void cfgPines(void){
+
+	PINSEL_CFG_Type cfgPin0_22; //Led rojo
+	PINSEL_CFG_Type cfgPin1_26; //CAP0.0
+
+	cfgPin0_22.Portnum = PINSEL_PORT_0;
+	cfgPin0_22.Pinnum = PINSEL_PIN_22;
+	cfgPin0_22.Funcnum = PINSEL_FUNC_0;
+	cfgPin0_22.Pinmode = PINSEL_PINMODE_TRISTATE;
+	cfgPin0_22.OpenDrain = PINSEL_PINMODE_NORMAL;
+
+	GPIO_SetDir(PORT_0, PIN_0_22, OUTPUT);
+
+	cfgPin1_26.Portnum = PINSEL_PORT_1;
+	cfgPin1_26.Pinnum = PINSEL_PIN_26;
+	cfgPin1_26.Funcnum = PINSEL_FUNC_3;
+	cfgPin1_26.Pinmode = PINSEL_PINMODE_PULLUP;
+	cfgPin1_26.OpenDrain = PINSEL_PINMODE_NORMAL;
+
+	PINSEL_ConfigPin(&cfgPin0_22);
+	PINSEL_ConfigPin(&cfgPin1_26);
+	GPIO_SetValue(PORT_0, PIN_0_22);
+	return;
+
+}
+
+void cfgTim0(void){
+
+	TIM_TIMERCFG_Type cfgTim0;
+	TIM_CAPTURECFG_Type cfgCAP0;
+
+	cfgTim0.PrescaleOption = TIM_PRESCALE_USVAL;
+	cfgTim0.PrescaleValue = 1000;
+
+	cfgCAP0.CaptureChannel=0;
+	cfgCAP0.RisingEdge = DISABLE;
+	cfgCAP0.FallingEdge = ENABLE;
+	cfgCAP0.IntOnCaption = ENABLE;
+
+	TIM_Init(LPC_TIM0, TIM_TIMER_MODE, &cfgTim0);
+	TIM_ConfigCapture(LPC_TIM0, &cfgCAP0);
+	TIM_Cmd(LPC_TIM0, ENABLE);
+
+	NVIC_SetPriority(TIMER0_IRQn, 0);
+	NVIC_EnableIRQ(TIMER0_IRQn);
+	return;
+}
+
+void TIMER0_IRQHandler(void){
+
+	if(TIM_GetIntStatus(LPC_TIM0, TIM_CR0_INT)){
+
+		CapturaActual=TIM_GetCaptureValue(LPC_TIM0, 0); //guardo el valor de la captura actual
+
+		if(CapturaFlag==0){
+			CapturaPrevia = CapturaActual;
+			CapturaFlag=1;
+		}
+		else{
+			uint32_t DeltaTick = (CapturaPrevia-CapturaActual); 	//antidad de ticks entre dos eventos
+			/*Como cada tick del TC demora 1ms entonces el tiempo entre capturas sera DeltaTicks*1ms*/
+
+			float tickTiempo = 0.001;
+			float DeltaTiempo = (DeltaTick*tickTiempo);
+			if(DeltaTiempo>=2.0){
+				GPIO_ClearValue(PORT_0, PIN_0_22); //Enciendo el LED P0.22 activo por bajo
+			}
+			else{
+				GPIO_SetValue(PORT_0, PIN_0_22); //Apago el LED
+			}
+			CapturaPrevia = CapturaActual;
+		}
+	}
+
+	TIM_ClearIntPending(LPC_TIM0, TIM_CR0_INT);
+	return;
+}
+
+
