@@ -95,10 +95,10 @@ void cfgGPIO(void){
 	LPC_GPIO0->FIOCLR |=(1<<0);					//Buzzer OFF
 
 	//Configuro por pines del DIPSWITCH
-	LPC_PINCON->PINMODE |= (0xFF<<0);			//Pulldown para los 4 SWITCH
+	LPC_PINCON->PINMODE4 |= (0xFF<<0);			//Pulldown para los 4 SWITCH
 
 	//Configuro el boton extra
-	LPC_PINCON->PINMODE |= (3<<8);				//Pulldown para P2.4
+	LPC_PINCON->PINMODE4 |= (3<<8);				//Pulldown para P2.4
 
 	/*Considero el resto de configuraciones por defecto (Boton, Buzzer y Dipswitch
 	como GPIO) y tambien el boton y el dipswitch como INPUT*/
@@ -120,7 +120,7 @@ void cfgEINT(void){
 	LPC_SC->EXTINT |=(1<<0);					//Bajo la flag de EINT0
 
 	NVIC_SetPriority(EINT0_IRQn,1);
-	NVIC_Enable(EINT0_IRQn);
+	NVIC_EnableIRQ(EINT0_IRQn);
 
 	return;
 }
@@ -131,7 +131,7 @@ void cfgIntGPIO(void){
 	LPC_GPIOINT->IO2IntEnR |= (1<<4);		//Habilito las interrupciones por flanco de subida en P2.4
 	LPC_GPIOINT->IO2IntClr |= (1<<4);           //Limpio la flag
 	NVIC_SetPriority(EINT3_IRQn,2);
-	NVIC_Enable(EINT3_IRQn);				//Habilito las interrupcion en el NVIC
+	NVIC_EnableIRQ(EINT3_IRQn);				//Habilito las interrupcion en el NVIC
 	return;
 }
 
@@ -169,6 +169,7 @@ void EINT3_IRQHandler(void){
 				cfgSysTick(0x04);							//Paro el Systick
 
 	}
+	}
 
 	LPC_GPIOINT->IO2IntClr|=(1<<4); 			//Bajo la flag
 	return;
@@ -189,6 +190,7 @@ void SysTick_Handler(void){
 	SysTick->CTRL &= SysTick->CTRL;					//Bajo la flag
 	return;
 }
+
 
 
 
