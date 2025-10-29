@@ -1,4 +1,4 @@
-/*1er Parcial Electrónica digital 3
+/*1er Parcial Electrónica digital 3 2024
  *
  * Ejercicio 1:
  * Un estacionamiento automatizado utiliza una barrera que se abre y cierra en función de la validación de
@@ -107,7 +107,7 @@ void cfgEINT0(void){
 	LPC_SC->EXTINT |= (1<<0);					//Limpio la FLAG de EINT0
 
 	NVIC_SetPriority(EINT0_IRQn,1);
-	NVIC_Enable(EINT0_IRQn);
+	NVIC_EnableIRQ(EINT0_IRQn);
 
 	return;
 }
@@ -118,7 +118,7 @@ void cfgIntGPIO(void){
 	LPC_GPIOINT->IO0IntClr |= (1<<17); 			//Bajo la flag
 
 	NVIC_SetPriority(EINT3_IRQn,2);
-	NVIC_Enable(EINT3_IRQn);
+	NVIC_EnableIRQ(EINT3_IRQn);
 	return;
 }
 
