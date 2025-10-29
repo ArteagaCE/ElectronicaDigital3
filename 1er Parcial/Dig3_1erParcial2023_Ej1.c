@@ -1,4 +1,6 @@
-/*Utilizando Systick e interrupciones externas escribir un código en C que cuente
+/*1er Parcial Electrónica Digital 3 2023
+ *Ejercicio 1:
+ *Utilizando Systick e interrupciones externas escribir un código en C que cuente
  *indefinidamente de 0 a 9. Un pulsador conectado a Eint0 reiniciará la cuenta a
  *0 y se mantendrá en ese valor mientras el pulsador se encuentre presionado. Un
  *pulsador conectado a Eint1 permitirá detener o continuar la cuenta cada vez
@@ -158,6 +160,7 @@ void SysTick_Handler(void){
 	SysTick->CTRL &= SysTick->CTRL;
 	return;
 }
+
 
 
 
