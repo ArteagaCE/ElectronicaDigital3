@@ -1,6 +1,8 @@
-/*1er Parcial Electrónica Digital 3 2023
- *Ejercicio 1:
- *Utilizando Systick e interrupciones externas escribir un código en C que cuente
+/*1er Parcial Electrónica digital 3 2023
+ *
+ * Ejercicio 1:
+ *
+ * Utilizando Systick e interrupciones externas escribir un código en C que cuente
  *indefinidamente de 0 a 9. Un pulsador conectado a Eint0 reiniciará la cuenta a
  *0 y se mantendrá en ese valor mientras el pulsador se encuentre presionado. Un
  *pulsador conectado a Eint1 permitirá detener o continuar la cuenta cada vez
@@ -73,7 +75,8 @@ int main(void) {
 void cfgGPIO(void){
 
 	//configuro pines P2.10 P2.11 y P2.12
-	LPC_PINCON->PINSEL4 |= (0b010101<<20);				//Funcion 3 para 3 pines (todos EINT)
+	LPC_PINCON->PINSEL4 &= ~((3<<20)|(3<<22)|(3<<24));
+	LPC_PINCON->PINSEL4 |= ((1<<20)|(1<<22)|(1<<24));				//Funcion 3 para 3 pines (todos EINT)
 	LPC_PINCON->PINMODE4 |= (0b11<<20);					//Pull-down para P2.10
 	//Supongo los otros dos pines con pull-up por defecto
 
@@ -88,7 +91,7 @@ void cfgGPIO(void){
 void cfgSysTick(uint32_t value){
 
 	SysTick->LOAD = value;			//El valor inicial dependera del parametro de entrada
-	Systick -> Val = 0;				//Current=0
+	SysTick -> VAL = 0;				//Current=0
 	SysTick -> CTRL = 0x07;			//Selecciono clk source, habilito int. y doy inicio al Systick
 
 	return;
@@ -108,9 +111,9 @@ void cfgEINT(void){
 	NVIC_SetPriority(EINT0_IRQn,1);
 	NVIC_SetPriority(EINT1_IRQn,2);
 	NVIC_SetPriority(EINT2_IRQn,3);
-	NVIC_Enable(EINT0_IRQn);
-	NVIC_Enable(EINT1_IRQn);
-	NVIC_Enable(EINT2_IRQn);
+	NVIC_EnableIRQ(EINT0_IRQn);
+	NVIC_EnableIRQ(EINT1_IRQn);
+	NVIC_EnableIRQ(EINT2_IRQn);
 	return;
 }
 
@@ -160,7 +163,5 @@ void SysTick_Handler(void){
 	SysTick->CTRL &= SysTick->CTRL;
 	return;
 }
-
-
 
 
