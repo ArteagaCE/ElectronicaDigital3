@@ -131,7 +131,7 @@ void EINT1_IRQHandler(void){
 
 void EINT2_IRQHandler(void){
 
-	static uint8_t FrecChange = 0;
+	volatile static uint8_t FrecChange = 0;
 	FrecChange = (FrecChange+1)%2;
 
 
@@ -158,5 +158,6 @@ void SysTick_Handler(void){
 	SysTick->CTRL &= SysTick->CTRL;
 	return;
 }
+
 
 
